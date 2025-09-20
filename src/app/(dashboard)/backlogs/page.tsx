@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Plus, Edit, Trash2, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -19,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ProductBacklogList } from '@/lib/schema';
 
 export default function BacklogsPage() {
+  const router = useRouter();
   const [backlogs, setBacklogs] = useState<ProductBacklogList[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -167,7 +169,16 @@ export default function BacklogsPage() {
                   <Button
                     variant="ghost"
                     size="sm"
+                    onClick={() => router.push(`/backlogs/${backlog.id}`)}
+                    title="View PBIs"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleEdit(backlog)}
+                    title="Edit backlog"
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
@@ -175,6 +186,7 @@ export default function BacklogsPage() {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleDelete(backlog.id)}
+                    title="Delete backlog"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
