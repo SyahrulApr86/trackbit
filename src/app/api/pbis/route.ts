@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       productBacklogListId,
     } = await request.json();
 
-    if (!pic || !title || !priority || storyPoint === undefined || businessValue === undefined || !userStory || !acceptanceCriteria || !productBacklogListId) {
+    if (!pic || !title || !priority || storyPoint === undefined || !businessValue || !userStory || !acceptanceCriteria || !productBacklogListId) {
       return NextResponse.json({ error: 'Required fields are missing' }, { status: 400 });
     }
 
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
         title,
         priority,
         storyPoint: parseInt(storyPoint),
-        businessValue: parseInt(businessValue),
+        businessValue,
         userStory,
         acceptanceCriteria,
         notes,

@@ -35,7 +35,7 @@ export const pbis = pgTable('pbis', {
   title: text('title').notNull(),
   priority: priorityEnum('priority').notNull(),
   storyPoint: integer('story_point').notNull(),
-  businessValue: integer('business_value').notNull(),
+  businessValue: text('business_value').notNull(),
   userStory: text('user_story').notNull(),
   acceptanceCriteria: text('acceptance_criteria').notNull(),
   notes: text('notes'),

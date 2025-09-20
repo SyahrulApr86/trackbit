@@ -159,7 +159,7 @@ export default function PBIsPage() {
       title: pbi.title,
       priority: pbi.priority,
       storyPoint: pbi.storyPoint.toString(),
-      businessValue: pbi.businessValue.toString(),
+      businessValue: pbi.businessValue,
       userStory: pbi.userStory,
       acceptanceCriteria: pbi.acceptanceCriteria,
       notes: pbi.notes || '',
@@ -299,9 +299,10 @@ export default function PBIsPage() {
                     <Label htmlFor="businessValue">Business Value</Label>
                     <Input
                       id="businessValue"
-                      type="number"
+                      type="text"
                       value={formData.businessValue}
                       onChange={(e) => setFormData({ ...formData, businessValue: e.target.value })}
+                      placeholder="e.g., High impact on user retention"
                       required
                     />
                   </div>
