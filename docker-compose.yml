@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: trackbit-postgres
+    restart: always
+    ports:
+      - "7543:5432"
+    environment:
+      POSTGRES_USER: trackbit_user
+      POSTGRES_PASSWORD: trackbit_pass
+      POSTGRES_DB: trackbit_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
