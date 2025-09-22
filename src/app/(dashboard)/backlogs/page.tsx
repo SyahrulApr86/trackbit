@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Edit, Trash2, Eye } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -94,6 +95,73 @@ export default function BacklogsPage() {
     setIsDialogOpen(true);
   };
 
+  const exportBacklogToExcel = async (backlog: ProductBacklogList) => {
+    try {
+      // Fetch PBIs for this backlog
+      const response = await fetch(`/api/pbis?backlogId=${backlog.id}`);
+      if (!response.ok) {
+        alert('Failed to fetch PBIs for export');
+        return;
+      }
+
+      const pbis = await response.json();
+
+      if (pbis.length === 0) {
+        alert('No PBIs found in this backlog to export');
+        return;
+      }
+
+      // Prepare data for Excel export
+      const exportData = pbis.map((pbi: any, index: number) => ({
+        'No.': index + 1,
+        'Title': pbi.title,
+        'Priority': pbi.priority,
+        'Story Points': pbi.storyPoint,
+        'PIC': pbi.pic,
+        'Epic': pbi.epicTitle || 'No Epic',
+        'Business Value': pbi.businessValue,
+        'User Story': pbi.userStory,
+        'Acceptance Criteria': pbi.acceptanceCriteria,
+        'Notes': pbi.notes || '',
+        'Created Date': new Date(pbi.createdAt).toLocaleDateString(),
+        'Updated Date': new Date(pbi.updatedAt).toLocaleDateString()
+      }));
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      // Set column widths
+      const colWidths = [
+        { wch: 5 },   // No.
+        { wch: 30 },  // Title
+        { wch: 10 },  // Priority
+        { wch: 12 },  // Story Points
+        { wch: 15 },  // PIC
+        { wch: 20 },  // Epic
+        { wch: 40 },  // Business Value
+        { wch: 50 },  // User Story
+        { wch: 50 },  // Acceptance Criteria
+        { wch: 30 },  // Notes
+        { wch: 12 },  // Created Date
+        { wch: 12 }   // Updated Date
+      ];
+      ws['!cols'] = colWidths;
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Product Backlog Items');
+
+      // Generate filename with backlog title and current date
+      const fileName = `${backlog.title.replace(/[^a-zA-Z0-9]/g, '_')}_PBIs_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      // Save file
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Failed to export to Excel. Please try again.');
+    }
+  };
+
   if (isLoading) {
     return <div>Loading...</div>;
   }
@@ -173,6 +241,14 @@ export default function BacklogsPage() {
                     title="View PBIs"
                   >
                     <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => exportBacklogToExcel(backlog)}
+                    title="Export to Excel"
+                  >
+                    <Download className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="ghost"

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Edit, Trash2, Plus, Eye } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Plus, Eye, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -239,6 +240,56 @@ export default function BacklogPBIsPage() {
     router.push(`/pbis?${query}`);
   };
 
+  const exportToExcel = () => {
+    if (!backlog || sortedPbis.length === 0) return;
+
+    // Prepare data for Excel export
+    const exportData = sortedPbis.map((pbi, index) => ({
+      'No.': index + 1,
+      'Title': pbi.title,
+      'Priority': pbi.priority,
+      'Story Points': pbi.storyPoint,
+      'PIC': pbi.pic,
+      'Epic': pbi.epicTitle || 'No Epic',
+      'Business Value': pbi.businessValue,
+      'User Story': pbi.userStory,
+      'Acceptance Criteria': pbi.acceptanceCriteria,
+      'Notes': pbi.notes || '',
+      'Created Date': formatDate(pbi.createdAt),
+      'Updated Date': formatDate(pbi.updatedAt)
+    }));
+
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(exportData);
+
+    // Set column widths
+    const colWidths = [
+      { wch: 5 },   // No.
+      { wch: 30 },  // Title
+      { wch: 10 },  // Priority
+      { wch: 12 },  // Story Points
+      { wch: 15 },  // PIC
+      { wch: 20 },  // Epic
+      { wch: 40 },  // Business Value
+      { wch: 50 },  // User Story
+      { wch: 50 },  // Acceptance Criteria
+      { wch: 30 },  // Notes
+      { wch: 12 },  // Created Date
+      { wch: 12 }   // Updated Date
+    ];
+    ws['!cols'] = colWidths;
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Product Backlog Items');
+
+    // Generate filename with backlog title and current date
+    const fileName = `${backlog.title.replace(/[^a-zA-Z0-9]/g, '_')}_PBIs_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    // Save file
+    XLSX.writeFile(wb, fileName);
+  };
+
   const goBack = () => {
     router.push('/backlogs');
   };
@@ -260,10 +311,20 @@ export default function BacklogPBIsPage() {
           </p>
         )}
       </div>
-      <Button onClick={() => openPbisWorkspace()} disabled={!backlogId || !!loadError}>
-        <Plus className="mr-2 h-4 w-4" />
-        New PBI
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          onClick={exportToExcel}
+          disabled={!backlog || sortedPbis.length === 0 || !!loadError}
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Export to Excel
+        </Button>
+        <Button onClick={() => openPbisWorkspace()} disabled={!backlogId || !!loadError}>
+          <Plus className="mr-2 h-4 w-4" />
+          New PBI
+        </Button>
+      </div>
     </div>
   );
 
