@@ -26,6 +26,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { PBI, ProductBacklogList, Epic } from '@/lib/schema';
 
 type PBIWithDetails = PBI & { epicTitle?: string; backlogTitle?: string };
@@ -83,6 +92,13 @@ export default function BacklogPBIsPage() {
     acceptanceCriteria: '',
     notes: '',
     epicId: '',
+  });
+
+  // Epic creation state
+  const [isEpicDialogOpen, setIsEpicDialogOpen] = useState(false);
+  const [epicFormData, setEpicFormData] = useState({
+    title: '',
+    description: '',
   });
 
   const fetchBacklog = useCallback(
@@ -352,6 +368,22 @@ export default function BacklogPBIsPage() {
     });
   };
 
+  const handleCreateNewPbi = () => {
+    setSelectedPbi(null);
+    setIsEditing(true);
+    setFormData({
+      pic: '',
+      title: '',
+      priority: 'Medium',
+      storyPoint: '',
+      businessValue: '',
+      userStory: '',
+      acceptanceCriteria: '',
+      notes: '',
+      epicId: '',
+    });
+  };
+
   const handleCloseSidePanel = () => {
     setSelectedPbi(null);
     setIsEditing(false);
@@ -368,13 +400,16 @@ export default function BacklogPBIsPage() {
     });
   };
 
-  const handleUpdatePbi = async (e: React.FormEvent) => {
+  const handleSavePbi = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPbi || !backlogId) return;
+    if (!backlogId) return;
 
     try {
-      const response = await fetch(`/api/pbis/${selectedPbi.id}`, {
-        method: 'PUT',
+      const url = selectedPbi ? `/api/pbis/${selectedPbi.id}` : '/api/pbis';
+      const method = selectedPbi ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
@@ -385,21 +420,65 @@ export default function BacklogPBIsPage() {
       });
 
       if (response.ok) {
-        toast.success('PBI updated successfully');
+        const actionText = selectedPbi ? 'updated' : 'created';
+        toast.success(`PBI ${actionText} successfully`);
         await refreshPbis(backlogId);
-        setIsEditing(false);
-        // Update selected PBI with new data
-        const updatedPbis = await fetchPbis(backlogId);
-        const updatedPbi = updatedPbis.find(p => p.id === selectedPbi.id);
-        if (updatedPbi) setSelectedPbi(updatedPbi);
+
+        if (selectedPbi) {
+          // Update mode - refresh selected PBI data
+          setIsEditing(false);
+          const updatedPbis = await fetchPbis(backlogId);
+          const updatedPbi = updatedPbis.find(p => p.id === selectedPbi.id);
+          if (updatedPbi) setSelectedPbi(updatedPbi);
+        } else {
+          // Create mode - close side panel
+          handleCloseSidePanel();
+        }
       } else {
         const errorData = await response.json();
-        toast.error(errorData.error || 'Failed to update PBI');
+        toast.error(errorData.error || `Failed to ${selectedPbi ? 'update' : 'create'} PBI`);
       }
     } catch (error) {
-      console.error('Error updating PBI:', error);
-      toast.error('Failed to update PBI. Please try again.');
+      console.error('Error saving PBI:', error);
+      toast.error(`Failed to ${selectedPbi ? 'update' : 'create'} PBI. Please try again.`);
     }
+  };
+
+  // Epic creation functions
+  const handleCreateEpic = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!backlogId) return;
+
+    try {
+      const response = await fetch('/api/epics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...epicFormData,
+          productBacklogListId: backlogId,
+        }),
+      });
+
+      if (response.ok) {
+        toast.success('Epic created successfully');
+        setIsEpicDialogOpen(false);
+        setEpicFormData({ title: '', description: '' });
+        // Refresh epics list
+        const updatedEpics = await fetchEpics(backlogId);
+        setEpics(updatedEpics);
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Failed to create epic');
+      }
+    } catch (error) {
+      console.error('Error creating epic:', error);
+      toast.error('Failed to create epic. Please try again.');
+    }
+  };
+
+  const openEpicDialog = () => {
+    setEpicFormData({ title: '', description: '' });
+    setIsEpicDialogOpen(true);
   };
 
   const goBack = () => {
@@ -432,7 +511,11 @@ export default function BacklogPBIsPage() {
           <Download className="mr-2 h-4 w-4" />
           Export to Excel
         </Button>
-        <Button onClick={() => openPbisWorkspace()} disabled={!backlogId || !!loadError}>
+        <Button variant="outline" onClick={openEpicDialog} disabled={!backlogId || !!loadError}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Epic
+        </Button>
+        <Button onClick={handleCreateNewPbi} disabled={!backlogId || !!loadError}>
           <Plus className="mr-2 h-4 w-4" />
           New PBI
         </Button>
@@ -488,7 +571,7 @@ export default function BacklogPBIsPage() {
   return (
     <div className="flex h-screen">
       {/* Main Content */}
-      <div className={`${selectedPbi ? 'w-2/3' : 'w-full'} space-y-6 p-6 transition-all duration-300 overflow-hidden`}>
+      <div className={`${selectedPbi || isEditing ? 'w-2/3' : 'w-full'} space-y-6 p-6 transition-all duration-300 overflow-hidden`}>
         {header}
 
         <Card>
@@ -507,7 +590,7 @@ export default function BacklogPBIsPage() {
           {sortedPbis.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-12 text-center text-sm text-muted-foreground">
               <p>No PBIs found for this backlog yet.</p>
-              <Button onClick={() => openPbisWorkspace()}>
+              <Button onClick={handleCreateNewPbi}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create the first PBI
               </Button>
@@ -656,11 +739,11 @@ export default function BacklogPBIsPage() {
       </div>
 
       {/* Side Panel */}
-      {selectedPbi && (
+      {(selectedPbi || isEditing) && (
         <div className="w-1/3 border-l bg-background p-6 overflow-y-auto">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold">
-              {isEditing ? 'Edit PBI' : 'PBI Details'}
+              {selectedPbi ? (isEditing ? 'Edit PBI' : 'PBI Details') : 'Create New PBI'}
             </h2>
             <Button variant="ghost" size="sm" onClick={handleCloseSidePanel}>
               <X className="h-4 w-4" />
@@ -668,7 +751,7 @@ export default function BacklogPBIsPage() {
           </div>
 
           {isEditing ? (
-            <form onSubmit={handleUpdatePbi} className="space-y-4">
+            <form onSubmit={handleSavePbi} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="pic">Person in Charge</Label>
@@ -788,9 +871,9 @@ export default function BacklogPBIsPage() {
               <div className="flex gap-2 pt-4">
                 <Button type="submit" className="flex-1">
                   <Save className="mr-2 h-4 w-4" />
-                  Update PBI
+                  {selectedPbi ? 'Update PBI' : 'Create PBI'}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
+                <Button type="button" variant="outline" onClick={() => selectedPbi ? setIsEditing(false) : handleCloseSidePanel()}>
                   Cancel
                 </Button>
               </div>
@@ -886,6 +969,50 @@ export default function BacklogPBIsPage() {
           )}
         </div>
       )}
+
+      {/* Epic Creation Dialog */}
+      <Dialog open={isEpicDialogOpen} onOpenChange={setIsEpicDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Epic</DialogTitle>
+            <DialogDescription>
+              Add a new epic to organize your backlog items in {backlog?.title || 'this backlog'}.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateEpic}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="epic-title">Title</Label>
+                <Input
+                  id="epic-title"
+                  value={epicFormData.title}
+                  onChange={(e) => setEpicFormData({ ...epicFormData, title: e.target.value })}
+                  placeholder="Enter epic title"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="epic-description">Description</Label>
+                <Textarea
+                  id="epic-description"
+                  value={epicFormData.description}
+                  onChange={(e) => setEpicFormData({ ...epicFormData, description: e.target.value })}
+                  placeholder="Describe the epic (optional)"
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEpicDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                Create Epic
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
