@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 export default function RegisterPage() {
   const [username, setUsername] = useState('');
@@ -23,12 +24,18 @@ export default function RegisterPage() {
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
+      toast.error('Validation Error', {
+        description: 'Passwords do not match. Please check your input.',
+      });
       setIsLoading(false);
       return;
     }
 
     if (password.length < 6) {
       setError('Password must be at least 6 characters long');
+      toast.error('Validation Error', {
+        description: 'Password must be at least 6 characters long.',
+      });
       setIsLoading(false);
       return;
     }
@@ -46,11 +53,20 @@ export default function RegisterPage() {
 
       if (!response.ok) {
         setError(data.error || 'Registration failed');
+        toast.error('Registration Failed', {
+          description: data.error || 'Registration failed. Please try again.',
+        });
       } else {
+        toast.success('Registration Successful', {
+          description: 'Account created successfully! Redirecting to login...',
+        });
         router.push('/auth/login?message=Registration successful');
       }
     } catch {
       setError('An error occurred. Please try again.');
+      toast.error('Connection Error', {
+        description: 'An error occurred. Please try again.',
+      });
     } finally {
       setIsLoading(false);
     }

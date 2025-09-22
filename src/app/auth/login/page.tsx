@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -30,11 +31,20 @@ export default function LoginPage() {
 
       if (result?.error) {
         setError('Invalid username or password');
+        toast.error('Login Failed', {
+          description: 'Invalid username or password. Please try again.',
+        });
       } else {
+        toast.success('Login Successful', {
+          description: 'Welcome back! Redirecting to dashboard...',
+        });
         router.push('/dashboard');
       }
     } catch {
       setError('An error occurred. Please try again.');
+      toast.error('Connection Error', {
+        description: 'An error occurred. Please try again.',
+      });
     } finally {
       setIsLoading(false);
     }
