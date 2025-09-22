@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Edit, Trash2, Plus, Eye, Download } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Plus, Eye, Download, X, Save } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +16,17 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { PBI, ProductBacklogList } from '@/lib/schema';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { PBI, ProductBacklogList, Epic } from '@/lib/schema';
 
 type PBIWithDetails = PBI & { epicTitle?: string; backlogTitle?: string };
 type PBIResponse = Omit<PBIWithDetails, 'createdAt' | 'updatedAt'> & {
@@ -52,11 +63,27 @@ export default function BacklogPBIsPage() {
 
   const [backlog, setBacklog] = useState<ProductBacklogList | null>(null);
   const [pbis, setPbis] = useState<PBIWithDetails[]>([]);
+  const [epics, setEpics] = useState<Epic[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<keyof PBI>('createdAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // Side panel state
+  const [selectedPbi, setSelectedPbi] = useState<PBIWithDetails | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    pic: '',
+    title: '',
+    priority: 'Medium' as 'Low' | 'Medium' | 'High',
+    storyPoint: '',
+    businessValue: '',
+    userStory: '',
+    acceptanceCriteria: '',
+    notes: '',
+    epicId: '',
+  });
 
   const fetchBacklog = useCallback(
     async (id: string): Promise<ProductBacklogList> => {
@@ -94,6 +121,16 @@ export default function BacklogPBIsPage() {
     })) as PBIWithDetails[];
   }, []);
 
+  const fetchEpics = useCallback(async (id: string): Promise<Epic[]> => {
+    const response = await fetch(`/api/epics?backlogId=${id}`);
+    if (!response.ok) {
+      throw new Error('Unable to load epics for this backlog.');
+    }
+
+    const data = await response.json();
+    return data;
+  }, []);
+
   useEffect(() => {
     if (!backlogId) {
       setLoadError('Missing backlog identifier.');
@@ -109,20 +146,23 @@ export default function BacklogPBIsPage() {
       setActionError(null);
 
       try {
-        const [backlogData, pbisData] = await Promise.all([
+        const [backlogData, pbisData, epicsData] = await Promise.all([
           fetchBacklog(backlogId),
           fetchPbis(backlogId),
+          fetchEpics(backlogId),
         ]);
 
         if (!isActive) return;
 
         setBacklog(backlogData);
         setPbis(pbisData);
+        setEpics(epicsData);
       } catch (err) {
         if (!isActive) return;
 
         setBacklog(null);
         setPbis([]);
+        setEpics([]);
         setLoadError(err instanceof Error ? err.message : 'Failed to load backlog details.');
       } finally {
         if (isActive) {
@@ -136,7 +176,7 @@ export default function BacklogPBIsPage() {
     return () => {
       isActive = false;
     };
-  }, [backlogId, fetchBacklog, fetchPbis]);
+  }, [backlogId, fetchBacklog, fetchPbis, fetchEpics]);
 
   const handleSort = (field: keyof PBI) => {
     if (sortField === field) {
@@ -290,6 +330,78 @@ export default function BacklogPBIsPage() {
     XLSX.writeFile(wb, fileName);
   };
 
+  // Side panel functions
+  const handleViewPbi = (pbi: PBIWithDetails) => {
+    setSelectedPbi(pbi);
+    setIsEditing(false);
+  };
+
+  const handleEditPbi = (pbi: PBIWithDetails) => {
+    setSelectedPbi(pbi);
+    setIsEditing(true);
+    setFormData({
+      pic: pbi.pic,
+      title: pbi.title,
+      priority: pbi.priority,
+      storyPoint: pbi.storyPoint.toString(),
+      businessValue: pbi.businessValue,
+      userStory: pbi.userStory,
+      acceptanceCriteria: pbi.acceptanceCriteria,
+      notes: pbi.notes || '',
+      epicId: pbi.epicId || '',
+    });
+  };
+
+  const handleCloseSidePanel = () => {
+    setSelectedPbi(null);
+    setIsEditing(false);
+    setFormData({
+      pic: '',
+      title: '',
+      priority: 'Medium',
+      storyPoint: '',
+      businessValue: '',
+      userStory: '',
+      acceptanceCriteria: '',
+      notes: '',
+      epicId: '',
+    });
+  };
+
+  const handleUpdatePbi = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPbi || !backlogId) return;
+
+    try {
+      const response = await fetch(`/api/pbis/${selectedPbi.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...formData,
+          storyPoint: parseInt(formData.storyPoint),
+          productBacklogListId: backlogId,
+          epicId: formData.epicId || null,
+        }),
+      });
+
+      if (response.ok) {
+        toast.success('PBI updated successfully');
+        await refreshPbis(backlogId);
+        setIsEditing(false);
+        // Update selected PBI with new data
+        const updatedPbis = await fetchPbis(backlogId);
+        const updatedPbi = updatedPbis.find(p => p.id === selectedPbi.id);
+        if (updatedPbi) setSelectedPbi(updatedPbi);
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Failed to update PBI');
+      }
+    } catch (error) {
+      console.error('Error updating PBI:', error);
+      toast.error('Failed to update PBI. Please try again.');
+    }
+  };
+
   const goBack = () => {
     router.push('/backlogs');
   };
@@ -374,10 +486,12 @@ export default function BacklogPBIsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {header}
+    <div className="flex h-screen">
+      {/* Main Content */}
+      <div className={`${selectedPbi ? 'w-2/3' : 'w-full'} space-y-6 p-6 transition-all duration-300 overflow-hidden`}>
+        {header}
 
-      <Card>
+        <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold">
             Product Backlog Items
@@ -506,18 +620,18 @@ export default function BacklogPBIsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => openPbisWorkspace(pbi.id)}
+                          onClick={() => handleViewPbi(pbi)}
                           className="h-8 w-8 p-0"
-                          title="View in PBIs workspace"
+                          title="View PBI details"
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => openPbisWorkspace(pbi.id)}
+                          onClick={() => handleEditPbi(pbi)}
                           className="h-8 w-8 p-0"
-                          title="Edit in PBIs workspace"
+                          title="Edit PBI"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -539,6 +653,239 @@ export default function BacklogPBIsPage() {
           )}
         </CardContent>
       </Card>
+      </div>
+
+      {/* Side Panel */}
+      {selectedPbi && (
+        <div className="w-1/3 border-l bg-background p-6 overflow-y-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">
+              {isEditing ? 'Edit PBI' : 'PBI Details'}
+            </h2>
+            <Button variant="ghost" size="sm" onClick={handleCloseSidePanel}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {isEditing ? (
+            <form onSubmit={handleUpdatePbi} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pic">Person in Charge</Label>
+                  <Input
+                    id="pic"
+                    value={formData.pic}
+                    onChange={(e) => setFormData({ ...formData, pic: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="priority">Priority</Label>
+                  <Select
+                    value={formData.priority}
+                    onValueChange={(value: 'Low' | 'Medium' | 'High') =>
+                      setFormData({ ...formData, priority: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Low">Low</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="High">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="title">Title</Label>
+                <Input
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="storyPoint">Story Points</Label>
+                <Input
+                  id="storyPoint"
+                  type="number"
+                  value={formData.storyPoint}
+                  onChange={(e) => setFormData({ ...formData, storyPoint: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="epic">Epic (Optional)</Label>
+                <Select
+                  value={formData.epicId || "none"}
+                  onValueChange={(value) => setFormData({ ...formData, epicId: value === "none" ? "" : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an epic (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Epic</SelectItem>
+                    {epics.map((epic) => (
+                      <SelectItem key={epic.id} value={epic.id}>
+                        {epic.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="businessValue">Business Value</Label>
+                <Textarea
+                  id="businessValue"
+                  value={formData.businessValue}
+                  onChange={(e) => setFormData({ ...formData, businessValue: e.target.value })}
+                  placeholder="Describe the business value and impact"
+                  rows={3}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="userStory">User Story</Label>
+                <Textarea
+                  id="userStory"
+                  value={formData.userStory}
+                  onChange={(e) => setFormData({ ...formData, userStory: e.target.value })}
+                  placeholder="As [role], I want to [action], so that [benefit]"
+                  rows={3}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="acceptanceCriteria">Acceptance Criteria</Label>
+                <Textarea
+                  id="acceptanceCriteria"
+                  value={formData.acceptanceCriteria}
+                  onChange={(e) => setFormData({ ...formData, acceptanceCriteria: e.target.value })}
+                  rows={4}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes (Optional)</Label>
+                <Textarea
+                  id="notes"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <Button type="submit" className="flex-1">
+                  <Save className="mr-2 h-4 w-4" />
+                  Update PBI
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-semibold">{selectedPbi.title}</h3>
+                  <Badge className={priorityColors[selectedPbi.priority]}>
+                    {selectedPbi.priority}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium text-gray-600">Story Points</Label>
+                    <div className="flex items-center gap-1 mt-1">
+                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                          {selectedPbi.storyPoint}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-600">Person in Charge</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                        <span className="text-xs font-medium text-white">
+                          {selectedPbi.pic.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <span className="text-sm">{selectedPbi.pic}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedPbi.epicTitle && (
+                  <div>
+                    <Label className="text-sm font-medium text-gray-600">Epic</Label>
+                    <div className="mt-1">
+                      <Badge variant="outline" className="border-purple-200 text-purple-700">
+                        {selectedPbi.epicTitle}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium text-gray-600">Business Value</Label>
+                  <p className="text-sm mt-1 leading-relaxed">{selectedPbi.businessValue}</p>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium text-gray-600">User Story</Label>
+                  <p className="text-sm mt-1 leading-relaxed">{selectedPbi.userStory}</p>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium text-gray-600">Acceptance Criteria</Label>
+                  <p className="text-sm mt-1 leading-relaxed whitespace-pre-wrap">
+                    {selectedPbi.acceptanceCriteria}
+                  </p>
+                </div>
+
+                {selectedPbi.notes && (
+                  <div>
+                    <Label className="text-sm font-medium text-gray-600">Notes</Label>
+                    <p className="text-sm mt-1 leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                      {selectedPbi.notes}
+                    </p>
+                  </div>
+                )}
+
+                <div className="pt-4 border-t">
+                  <div className="text-xs text-muted-foreground">
+                    <div>Created: {formatDate(selectedPbi.createdAt)}</div>
+                    {selectedPbi.updatedAt !== selectedPbi.createdAt && (
+                      <div>Updated: {formatDate(selectedPbi.updatedAt)}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <Button onClick={() => setIsEditing(true)} className="w-full">
+                <Edit className="mr-2 h-4 w-4" />
+                Edit PBI
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

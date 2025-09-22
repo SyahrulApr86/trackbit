@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -73,9 +74,22 @@ export default function EpicsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate form data
+    if (!formData.title.trim()) {
+      toast.error('Title is required');
+      return;
+    }
+
+    if (!editingEpic && !formData.productBacklogListId) {
+      toast.error('Product backlog is required');
+      return;
+    }
+
     try {
       const url = editingEpic ? `/api/epics/${editingEpic.id}` : '/api/epics';
       const method = editingEpic ? 'PUT' : 'POST';
+
+      console.log('Submitting epic data:', formData);
 
       const response = await fetch(url, {
         method,
@@ -84,13 +98,19 @@ export default function EpicsPage() {
       });
 
       if (response.ok) {
+        toast.success(editingEpic ? 'Epic updated successfully' : 'Epic created successfully');
         await fetchEpics();
         setIsDialogOpen(false);
         setEditingEpic(null);
         setFormData({ title: '', description: '', productBacklogListId: '' });
+      } else {
+        const errorData = await response.json();
+        console.error('API Error:', errorData);
+        toast.error(errorData.error || 'Failed to save epic');
       }
     } catch (error) {
       console.error('Error saving epic:', error);
+      toast.error('Failed to save epic. Please try again.');
     }
   };
 
@@ -118,8 +138,24 @@ export default function EpicsPage() {
   };
 
   const openCreateDialog = () => {
+    if (backlogs.length === 0) {
+      toast.error('Cannot create epic', {
+        description: 'You need to create a product backlog first before adding epics.',
+        action: {
+          label: 'Create Backlog',
+          onClick: () => window.location.href = '/backlogs'
+        }
+      });
+      return;
+    }
+
     setEditingEpic(null);
-    setFormData({ title: '', description: '', productBacklogListId: '' });
+    // Set the first backlog as default to avoid empty selection
+    setFormData({
+      title: '',
+      description: '',
+      productBacklogListId: backlogs.length > 0 ? backlogs[0].id : ''
+    });
     setIsDialogOpen(true);
   };
 
@@ -136,7 +172,7 @@ export default function EpicsPage() {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={openCreateDialog} disabled={backlogs.length === 0}>
+            <Button onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
               New Epic
             </Button>
@@ -247,27 +283,23 @@ export default function EpicsPage() {
         ))}
       </div>
 
-      {epics.length === 0 && backlogs.length > 0 && (
+      {epics.length === 0 && (
         <Card>
           <CardContent className="text-center py-8">
-            <p className="text-muted-foreground">No epics created yet.</p>
+            <p className="text-muted-foreground">
+              {backlogs.length === 0
+                ? 'You need to create a product backlog first before adding epics.'
+                : 'No epics created yet.'
+              }
+            </p>
             <Button className="mt-4" onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
-              Create your first epic
+              {backlogs.length === 0 ? 'Create Epic (requires backlog)' : 'Create your first epic'}
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {backlogs.length === 0 && (
-        <Card>
-          <CardContent className="text-center py-8">
-            <p className="text-muted-foreground">
-              You need to create a product backlog first before adding epics.
-            </p>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
