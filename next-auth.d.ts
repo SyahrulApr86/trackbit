@@ -9,10 +9,12 @@ declare module 'next-auth' {
   }
 
   export interface NextAuthOptions {
+    secret?: string;
     providers?: any[];
     session?: any;
     pages?: any;
     callbacks?: any;
+    debug?: boolean;
   }
 
   export default function NextAuth(options: NextAuthOptions): any;
