@@ -51,6 +51,7 @@ export default function PBIsPage() {
     fetchPbis();
     fetchBacklogs();
     fetchEpics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

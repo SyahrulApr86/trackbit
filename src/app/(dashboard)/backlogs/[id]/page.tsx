@@ -33,7 +33,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { PBI, ProductBacklogList, Epic } from '@/lib/schema';
 
@@ -283,18 +282,6 @@ export default function BacklogPBIsPage() {
     );
   };
 
-  const buildPbiQuery = (pbiId?: string) => {
-    if (!backlogId) return '';
-    const params = new URLSearchParams({ backlogId });
-    if (pbiId) params.set('pbiId', pbiId);
-    return params.toString();
-  };
-
-  const openPbisWorkspace = (pbiId?: string) => {
-    const query = buildPbiQuery(pbiId);
-    if (!query) return;
-    router.push(`/pbis?${query}`);
-  };
 
   const exportToExcel = () => {
     if (!backlog || sortedPbis.length === 0) return;
@@ -878,7 +865,7 @@ export default function BacklogPBIsPage() {
                 </Button>
               </div>
             </form>
-          ) : (
+          ) : selectedPbi ? (
             <div className="space-y-6">
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -966,7 +953,7 @@ export default function BacklogPBIsPage() {
                 Edit PBI
               </Button>
             </div>
-          )}
+          ) : null}
         </div>
       )}
 

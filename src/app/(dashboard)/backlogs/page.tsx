@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ProductBacklogList } from '@/lib/schema';
+import { ProductBacklogList, PBI } from '@/lib/schema';
 
 export default function BacklogsPage() {
   const router = useRouter();
@@ -112,7 +112,7 @@ export default function BacklogsPage() {
       }
 
       // Prepare data for Excel export
-      const exportData = pbis.map((pbi: any, index: number) => ({
+      const exportData = pbis.map((pbi: PBI & { epicTitle?: string }, index: number) => ({
         'No.': index + 1,
         'Title': pbi.title,
         'Priority': pbi.priority,
